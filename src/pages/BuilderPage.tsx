@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { usePersonasStore } from "@/store/personas";
 import { useSettingsStore } from "@/store/settings";
 import { OpenAIProvider } from "@/lib/llm/openai";
@@ -8,6 +8,8 @@ import { GeminiProvider } from "@/lib/llm/gemini";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { useBuilderStore } from "@/store/builder";
+import { useHistoryStore } from "@/store/history";
 import {
     Select,
     SelectContent,
@@ -21,11 +23,16 @@ export function BuilderPage() {
     const { personas, loadPersonas } = usePersonasStore();
     const { openAiKey, claudeKey, geminiKey, ollamaUrl, defaultModel, loadSettings } = useSettingsStore();
 
-    const [goal, setGoal] = useState("");
-    const [context, setContext] = useState("");
-    const [selectedPersonaId, setSelectedPersonaId] = useState("");
-    const [constraints, setConstraints] = useState("");
-    const [outputFormat, setOutputFormat] = useState("");
+    const {
+        goal, setGoal,
+        context, setContext,
+        selectedPersonaId, setSelectedPersonaId,
+        constraints, setConstraints,
+        outputFormat, setOutputFormat,
+        loadBuilderState
+    } = useBuilderStore();
+
+    const { addEntry } = useHistoryStore();
 
     const [compiledPrompt, setCompiledPrompt] = useState("");
     const [result, setResult] = useState("");
@@ -33,11 +40,20 @@ export function BuilderPage() {
     const [isGenerating, setIsGenerating] = useState(false);
     const [error, setError] = useState("");
     const [copied, setCopied] = useState(false);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+    // Auto-scroll as text is typed
+    useEffect(() => {
+        if (scrollContainerRef.current) {
+            scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+        }
+    }, [displayedResult]);
 
     useEffect(() => {
         loadPersonas();
         loadSettings();
-    }, [loadPersonas, loadSettings]);
+        loadBuilderState();
+    }, [loadPersonas, loadSettings, loadBuilderState]);
 
     // Typewriter effect for smoothing large chunks
     useEffect(() => {
@@ -45,8 +61,11 @@ export function BuilderPage() {
 
         const advance = () => {
             setDisplayedResult(prev => {
-                if (prev.length < result.length) {
-                    timeout = setTimeout(advance, 8); // ~8ms per char for smooth typing
+                const diff = result.length - prev.length;
+                if (diff > 0) {
+                    // Slower baseline (25ms), but speeds up if the buffer gets too big (> 200 chars)
+                    const speed = diff > 200 ? 5 : 25;
+                    timeout = setTimeout(advance, speed);
                     return prev + result.charAt(prev.length);
                 }
                 return prev;
@@ -73,7 +92,7 @@ export function BuilderPage() {
 
         const combinedConstraints = [
             ...(persona?.constraints || []),
-            ...constraints.split("\\n").filter(c => c.trim().length > 0)
+            ...constraints.split("\\n").filter((c: string) => c.trim().length > 0)
         ];
 
         if (combinedConstraints.length > 0) {
@@ -119,6 +138,16 @@ export function BuilderPage() {
 
             // Response is fully gathered, update one last time fully (safety net)
             setResult(response);
+
+            // Record in history
+            const persona = personas.find(p => p.id === selectedPersonaId);
+            await addEntry({
+                personaName: persona?.name || "No Persona",
+                goal: goal,
+                prompt: compiledPrompt,
+                response: response,
+                model: defaultModel
+            });
         } catch (err: any) {
             setError(err instanceof Error ? err.stack || err.message : JSON.stringify(err));
         } finally {
@@ -237,7 +266,10 @@ export function BuilderPage() {
                         )}
                     </div>
                     {error && <div className="text-destructive text-sm p-3 bg-destructive/10 rounded-md border border-destructive/20">{error}</div>}
-                    <div className="bg-card border rounded-md p-4 text-sm whitespace-pre-wrap overflow-y-auto flex-[2] relative shadow-inner font-mono leading-relaxed">
+                    <div
+                        ref={scrollContainerRef}
+                        className="bg-card border rounded-md p-4 text-sm whitespace-pre-wrap overflow-y-auto flex-[2] relative shadow-inner font-mono leading-relaxed"
+                    >
                         {displayedResult ? (
                             <>
                                 {displayedResult}
