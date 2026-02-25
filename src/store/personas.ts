@@ -22,7 +22,7 @@ export const usePersonasStore = create<PersonasState>((set, get) => ({
 
         if (isTauri()) {
             try {
-                const store = await load("personas.json", { autoSave: false, defaults: {} });
+                const store = await load("personas.json", { autoSave: false });
                 await store.set("customPersonas", newPersonas.filter(p => p.isCustom));
                 await store.save();
             } catch (e) {
@@ -39,7 +39,7 @@ export const usePersonasStore = create<PersonasState>((set, get) => ({
 
         if (isTauri()) {
             try {
-                const store = await load("personas.json", { autoSave: false, defaults: {} });
+                const store = await load("personas.json", { autoSave: false });
                 await store.set("customPersonas", newPersonas.filter(p => p.isCustom));
                 await store.save();
             } catch (e) {
@@ -56,7 +56,7 @@ export const usePersonasStore = create<PersonasState>((set, get) => ({
 
         if (isTauri()) {
             try {
-                const store = await load("personas.json", { autoSave: false, defaults: {} });
+                const store = await load("personas.json", { autoSave: false });
                 await store.set("customPersonas", newPersonas.filter(p => p.isCustom));
                 await store.save();
             } catch (e) {
@@ -77,7 +77,7 @@ export const usePersonasStore = create<PersonasState>((set, get) => ({
         }
 
         try {
-            const store = await load("personas.json", { autoSave: false, defaults: {} });
+            const store = await load("personas.json", { autoSave: false });
             const customPersonas = await store.get<Persona[]>("customPersonas") || [];
 
             const allPersonas = [...defaultPersonas];

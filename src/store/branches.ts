@@ -46,7 +46,7 @@ export const useBranchStore = create<BranchStoreState>((set, get) => ({
         }
 
         try {
-            const store = await load("branches.json", { autoSave: false, defaults: {} });
+            const store = await load("branches.json", { autoSave: false });
             const branches = await store.get<Branch[]>("branches") || [];
             const activeBranchId = await store.get<string | null>("activeBranchId") || null;
 
@@ -75,7 +75,7 @@ export const useBranchStore = create<BranchStoreState>((set, get) => ({
 
         if (isTauri()) {
             try {
-                const store = await load("branches.json", { autoSave: false, defaults: {} });
+                const store = await load("branches.json", { autoSave: false });
                 await store.set("branches", newBranches);
                 await store.set("activeBranchId", id);
                 await store.save();
@@ -98,7 +98,7 @@ export const useBranchStore = create<BranchStoreState>((set, get) => ({
 
         if (isTauri()) {
             try {
-                const store = await load("branches.json", { autoSave: false, defaults: {} });
+                const store = await load("branches.json", { autoSave: false });
                 await store.set("branches", newBranches);
                 await store.save();
             } catch (error) {
@@ -122,7 +122,7 @@ export const useBranchStore = create<BranchStoreState>((set, get) => ({
 
         if (isTauri()) {
             try {
-                const store = await load("branches.json", { autoSave: false, defaults: {} });
+                const store = await load("branches.json", { autoSave: false });
                 await store.set("branches", newBranches);
                 await store.set("activeBranchId", newActiveId);
                 await store.save();
@@ -138,7 +138,7 @@ export const useBranchStore = create<BranchStoreState>((set, get) => ({
         set({ activeBranchId: id });
         if (isTauri()) {
             try {
-                const store = await load("branches.json", { autoSave: false, defaults: {} });
+                const store = await load("branches.json", { autoSave: false });
                 await store.set("activeBranchId", id);
                 await store.save();
             } catch (e) {

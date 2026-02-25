@@ -54,7 +54,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => ({
     setGoal: async (goal) => {
         set({ goal });
         if (isTauri()) {
-            const store = await load("builder.json", { autoSave: false, defaults: {} });
+            const store = await load("builder.json", { autoSave: false });
             await store.set("goal", goal);
             await store.save();
         }
@@ -64,7 +64,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => ({
     setContext: async (context) => {
         set({ context });
         if (isTauri()) {
-            const store = await load("builder.json", { autoSave: false, defaults: {} });
+            const store = await load("builder.json", { autoSave: false });
             await store.set("context", context);
             await store.save();
         }
@@ -76,7 +76,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => ({
         const newContext = current ? current + "\n\n" + content : content;
         set({ context: newContext });
         if (isTauri()) {
-            const store = await load("builder.json", { autoSave: false, defaults: {} });
+            const store = await load("builder.json", { autoSave: false });
             await store.set("context", newContext);
             await store.save();
         }
@@ -86,7 +86,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => ({
     setSelectedPersonaId: async (selectedPersonaId) => {
         set({ selectedPersonaId });
         if (isTauri()) {
-            const store = await load("builder.json", { autoSave: false, defaults: {} });
+            const store = await load("builder.json", { autoSave: false });
             await store.set("selectedPersonaId", selectedPersonaId);
             await store.save();
         }
@@ -96,7 +96,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => ({
     setConstraints: async (constraints) => {
         set({ constraints });
         if (isTauri()) {
-            const store = await load("builder.json", { autoSave: false, defaults: {} });
+            const store = await load("builder.json", { autoSave: false });
             await store.set("constraints", constraints);
             await store.save();
         }
@@ -106,7 +106,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => ({
     setOutputFormat: async (outputFormat) => {
         set({ outputFormat });
         if (isTauri()) {
-            const store = await load("builder.json", { autoSave: false, defaults: {} });
+            const store = await load("builder.json", { autoSave: false });
             await store.set("outputFormat", outputFormat);
             await store.save();
         }
@@ -115,7 +115,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => ({
     setBlockOrder: async (blockOrder) => {
         set({ blockOrder });
         if (isTauri()) {
-            const store = await load("builder.json", { autoSave: false, defaults: {} });
+            const store = await load("builder.json", { autoSave: false });
             await store.set("blockOrder", blockOrder);
             await store.save();
         }
@@ -124,7 +124,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => ({
     setLastResult: async (lastResult) => {
         set({ lastResult });
         if (isTauri()) {
-            const store = await load("builder.json", { autoSave: false, defaults: {} });
+            const store = await load("builder.json", { autoSave: false });
             await store.set("lastResult", lastResult);
             await store.save();
         }
@@ -140,7 +140,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => ({
         }
 
         try {
-            const store = await load("builder.json", { autoSave: false, defaults: {} });
+            const store = await load("builder.json", { autoSave: false });
             const [goal, context, selectedPersonaId, constraints, outputFormat, blockOrder, lastResult] = await Promise.all([
                 store.get<string>("goal"),
                 store.get<string>("context"),

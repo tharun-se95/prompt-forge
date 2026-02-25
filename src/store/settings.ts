@@ -29,7 +29,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
     setOpenAiKey: async (key: string) => {
         if (isTauri()) {
-            const store = await load("settings.json", { autoSave: false, defaults: {} });
+            const store = await load("settings.json", { autoSave: false });
             await store.set("openAiKey", key);
             await store.save();
         }
@@ -39,7 +39,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
     setClaudeKey: async (key: string) => {
         if (isTauri()) {
-            const store = await load("settings.json", { autoSave: false, defaults: {} });
+            const store = await load("settings.json", { autoSave: false });
             await store.set("claudeKey", key);
             await store.save();
         }
@@ -49,7 +49,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
     setGeminiKey: async (key: string) => {
         if (isTauri()) {
-            const store = await load("settings.json", { autoSave: false, defaults: {} });
+            const store = await load("settings.json", { autoSave: false });
             await store.set("geminiKey", key);
             await store.save();
         }
@@ -59,7 +59,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
     setOllamaUrl: async (url: string) => {
         if (isTauri()) {
-            const store = await load("settings.json", { autoSave: false, defaults: {} });
+            const store = await load("settings.json", { autoSave: false });
             await store.set("ollamaUrl", url);
             await store.save();
         }
@@ -69,7 +69,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
     setDefaultModel: async (model: string) => {
         if (isTauri()) {
-            const store = await load("settings.json", { autoSave: false, defaults: {} });
+            const store = await load("settings.json", { autoSave: false });
             await store.set("defaultModel", model);
             await store.save();
         }
@@ -86,7 +86,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         }
 
         try {
-            const store = await load("settings.json", { autoSave: false, defaults: {} });
+            const store = await load("settings.json", { autoSave: false });
             const [openAiKey, claudeKey, geminiKey, ollamaUrl, defaultModel] = await Promise.all([
                 store.get<string>("openAiKey"),
                 store.get<string>("claudeKey"),
