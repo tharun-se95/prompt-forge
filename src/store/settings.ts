@@ -63,12 +63,21 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         if (get().isLoaded) return;
         try {
             const store = await load("settings.json", { autoSave: false, defaults: {} });
-            const openAiKey = await store.get<string>("openAiKey") || "";
-            const claudeKey = await store.get<string>("claudeKey") || "";
-            const geminiKey = await store.get<string>("geminiKey") || "";
-            const ollamaUrl = await store.get<string>("ollamaUrl") || "http://localhost:11434";
-            const defaultModel = await store.get<string>("defaultModel") || "gpt-4o";
-            set({ openAiKey, claudeKey, geminiKey, ollamaUrl, defaultModel, isLoaded: true });
+            const [openAiKey, claudeKey, geminiKey, ollamaUrl, defaultModel] = await Promise.all([
+                store.get<string>("openAiKey"),
+                store.get<string>("claudeKey"),
+                store.get<string>("geminiKey"),
+                store.get<string>("ollamaUrl"),
+                store.get<string>("defaultModel")
+            ]);
+            set({
+                openAiKey: openAiKey || "",
+                claudeKey: claudeKey || "",
+                geminiKey: geminiKey || "",
+                ollamaUrl: ollamaUrl || "http://localhost:11434",
+                defaultModel: defaultModel || "gpt-4o",
+                isLoaded: true
+            });
         } catch (error) {
             console.error("Failed to load settings store:", error);
         }

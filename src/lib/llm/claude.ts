@@ -1,4 +1,6 @@
 import { LLMProvider, LLMMessage, LLMGenerationOptions } from "./index";
+import { fetch } from "@tauri-apps/plugin-http";
+import { useDebugStore } from "@/store/debug";
 
 export class ClaudeProvider implements LLMProvider {
     name = "Claude";
@@ -9,7 +11,11 @@ export class ClaudeProvider implements LLMProvider {
     }
 
     async generate(messages: LLMMessage[], options: LLMGenerationOptions): Promise<string> {
+        const { addLog } = useDebugStore.getState();
         if (!this.apiKey) throw new Error("Claude API key is missing");
+        if (!options) throw new Error("Claude options are missing");
+
+        addLog("Claude Request Started", "info", { model: options.model });
 
         // Extract system message if present (Claude requires it at top-level)
         const systemMessage = messages.find(m => m.role === "system")?.content;
@@ -21,7 +27,6 @@ export class ClaudeProvider implements LLMProvider {
                 "Content-Type": "application/json",
                 "x-api-key": this.apiKey,
                 "anthropic-version": "2023-06-01",
-                "anthropic-dangerous-direct-browser-access": "true" // Required for client-side fetch, though Tauri allows bypassing CORS, Claude API checks headers
             },
             body: JSON.stringify({
                 model: options.model,

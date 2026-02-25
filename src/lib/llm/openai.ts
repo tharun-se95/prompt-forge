@@ -1,4 +1,6 @@
 import { LLMProvider, LLMMessage, LLMGenerationOptions } from "./index";
+import { fetch } from "@tauri-apps/plugin-http";
+import { useDebugStore } from "@/store/debug";
 
 export class OpenAIProvider implements LLMProvider {
     name = "OpenAI";
@@ -9,7 +11,11 @@ export class OpenAIProvider implements LLMProvider {
     }
 
     async generate(messages: LLMMessage[], options: LLMGenerationOptions): Promise<string> {
+        const { addLog } = useDebugStore.getState();
         if (!this.apiKey) throw new Error("OpenAI API key is missing");
+        if (!options) throw new Error("OpenAI options are missing");
+
+        addLog("OpenAI Request Started", "info", { model: options.model });
 
         const response = await fetch("https://api.openai.com/v1/chat/completions", {
             method: "POST",

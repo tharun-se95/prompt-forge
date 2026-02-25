@@ -7,12 +7,15 @@ interface BuilderState {
     selectedPersonaId: string;
     constraints: string;
     outputFormat: string;
+    lastResult: string;
     isLoaded: boolean;
     setGoal: (goal: string) => void;
     setContext: (context: string) => void;
+    appendContext: (content: string) => void;
     setSelectedPersonaId: (id: string) => void;
     setConstraints: (constraints: string) => void;
     setOutputFormat: (format: string) => void;
+    setLastResult: (result: string) => void;
     loadBuilderState: () => Promise<void>;
 }
 
@@ -22,6 +25,7 @@ export const useBuilderStore = create<BuilderState>((set, get) => ({
     selectedPersonaId: "",
     constraints: "",
     outputFormat: "",
+    lastResult: "",
     isLoaded: false,
 
     setGoal: async (goal) => {
@@ -35,6 +39,15 @@ export const useBuilderStore = create<BuilderState>((set, get) => ({
         set({ context });
         const store = await load("builder.json", { autoSave: false, defaults: {} });
         await store.set("context", context);
+        await store.save();
+    },
+
+    appendContext: async (content) => {
+        const current = get().context;
+        const newContext = current ? current + "\n\n" + content : content;
+        set({ context: newContext });
+        const store = await load("builder.json", { autoSave: false, defaults: {} });
+        await store.set("context", newContext);
         await store.save();
     },
 
@@ -59,22 +72,33 @@ export const useBuilderStore = create<BuilderState>((set, get) => ({
         await store.save();
     },
 
+    setLastResult: async (lastResult) => {
+        set({ lastResult });
+        const store = await load("builder.json", { autoSave: false, defaults: {} });
+        await store.set("lastResult", lastResult);
+        await store.save();
+    },
+
     loadBuilderState: async () => {
         if (get().isLoaded) return;
         try {
             const store = await load("builder.json", { autoSave: false, defaults: {} });
-            const goal = await store.get<string>("goal") || "";
-            const context = await store.get<string>("context") || "";
-            const selectedPersonaId = await store.get<string>("selectedPersonaId") || "";
-            const constraints = await store.get<string>("constraints") || "";
-            const outputFormat = await store.get<string>("outputFormat") || "";
+            const [goal, context, selectedPersonaId, constraints, outputFormat, lastResult] = await Promise.all([
+                store.get<string>("goal"),
+                store.get<string>("context"),
+                store.get<string>("selectedPersonaId"),
+                store.get<string>("constraints"),
+                store.get<string>("outputFormat"),
+                store.get<string>("lastResult")
+            ]);
 
             set({
-                goal,
-                context,
-                selectedPersonaId,
-                constraints,
-                outputFormat,
+                goal: goal || "",
+                context: context || "",
+                selectedPersonaId: selectedPersonaId || "",
+                constraints: constraints || "",
+                outputFormat: outputFormat || "",
+                lastResult: lastResult || "",
                 isLoaded: true
             });
         } catch (error) {

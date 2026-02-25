@@ -37,26 +37,31 @@ export class OllamaProvider implements LLMProvider {
 
         const decoder = new TextDecoder();
         let fullText = "";
+        let lineBuffer = "";
 
         while (true) {
             const { done, value } = await reader.read();
             if (done) break;
 
             const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split("\n");
+            lineBuffer += chunk;
+
+            const lines = lineBuffer.split("\n");
+            lineBuffer = lines.pop() || "";
 
             for (const line of lines) {
                 if (!line.trim()) continue;
                 try {
                     const data = JSON.parse(line);
                     if (data.message?.content) {
-                        fullText += data.message.content;
+                        const content = data.message.content;
+                        fullText += content;
                         if (options.onProgress) {
-                            options.onProgress(data.message.content);
+                            options.onProgress(content);
                         }
                     }
                 } catch (e) {
-                    // Ignore incomplete JSON chunks, they will be appended to the next read
+                    // Ignore incomplete JSON chunks
                 }
             }
         }
