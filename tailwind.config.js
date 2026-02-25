@@ -4,10 +4,17 @@ export default {
 	content: ["./index.html", "./src/**/*.{ts,tsx,js,jsx}"],
 	theme: {
 		extend: {
+			fontFamily: {
+				sans: ["Inter", "sans-serif"],
+				outfit: ["Outfit", "sans-serif"],
+			},
 			borderRadius: {
 				lg: 'var(--radius)',
 				md: 'calc(var(--radius) - 2px)',
 				sm: 'calc(var(--radius) - 4px)'
+			},
+			boxShadow: {
+				'premium-glow': '0 0 20px rgba(99, 102, 241, 0.3)',
 			},
 			colors: {
 				background: 'hsl(var(--background))',
@@ -59,7 +66,36 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
+				},
+				premium: {
+					indigo: '#6366f1',
+					violet: '#8b5cf6',
+					glow: 'rgba(99, 102, 241, 0.15)',
 				}
+			},
+			keyframes: {
+				"shimmer": {
+					"0%": { backgroundPosition: "-200% 0" },
+					"100%": { backgroundPosition: "200% 0" }
+				},
+				"float": {
+					"0%, 100%": { transform: "translateY(0)" },
+					"50%": { transform: "translateY(-5px)" }
+				}
+			},
+			animation: {
+				"shimmer": "shimmer 2s infinite linear",
+				"float": "float 3s ease-in-out infinite",
+			},
+			screens: {
+				'3xl': '1920px',
+				'4xl': '2560px',
+			},
+			spacing: {
+				'18': '4.5rem',
+				'22': '5.5rem',
+				'26': '6.5rem',
+				'30': '7.5rem',
 			}
 		}
 	},

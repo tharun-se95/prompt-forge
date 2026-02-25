@@ -1,5 +1,8 @@
 import { create } from "zustand";
 import { load } from "@tauri-apps/plugin-store";
+import { isTauri } from "../lib/tauri";
+
+
 
 interface SettingsState {
     openAiKey: string;
@@ -25,42 +28,63 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     isLoaded: false,
 
     setOpenAiKey: async (key: string) => {
-        const store = await load("settings.json", { autoSave: false, defaults: {} });
-        await store.set("openAiKey", key);
-        await store.save();
+        if (isTauri()) {
+            const store = await load("settings.json", { autoSave: false, defaults: {} });
+            await store.set("openAiKey", key);
+            await store.save();
+        }
         set({ openAiKey: key });
     },
 
+
     setClaudeKey: async (key: string) => {
-        const store = await load("settings.json", { autoSave: false, defaults: {} });
-        await store.set("claudeKey", key);
-        await store.save();
+        if (isTauri()) {
+            const store = await load("settings.json", { autoSave: false, defaults: {} });
+            await store.set("claudeKey", key);
+            await store.save();
+        }
         set({ claudeKey: key });
     },
 
+
     setGeminiKey: async (key: string) => {
-        const store = await load("settings.json", { autoSave: false, defaults: {} });
-        await store.set("geminiKey", key);
-        await store.save();
+        if (isTauri()) {
+            const store = await load("settings.json", { autoSave: false, defaults: {} });
+            await store.set("geminiKey", key);
+            await store.save();
+        }
         set({ geminiKey: key });
     },
 
+
     setOllamaUrl: async (url: string) => {
-        const store = await load("settings.json", { autoSave: false, defaults: {} });
-        await store.set("ollamaUrl", url);
-        await store.save();
+        if (isTauri()) {
+            const store = await load("settings.json", { autoSave: false, defaults: {} });
+            await store.set("ollamaUrl", url);
+            await store.save();
+        }
         set({ ollamaUrl: url });
     },
 
+
     setDefaultModel: async (model: string) => {
-        const store = await load("settings.json", { autoSave: false, defaults: {} });
-        await store.set("defaultModel", model);
-        await store.save();
+        if (isTauri()) {
+            const store = await load("settings.json", { autoSave: false, defaults: {} });
+            await store.set("defaultModel", model);
+            await store.save();
+        }
         set({ defaultModel: model });
     },
 
+
     loadSettings: async () => {
         if (get().isLoaded) return;
+
+        if (!isTauri()) {
+            set({ isLoaded: true });
+            return;
+        }
+
         try {
             const store = await load("settings.json", { autoSave: false, defaults: {} });
             const [openAiKey, claudeKey, geminiKey, ollamaUrl, defaultModel] = await Promise.all([
@@ -80,6 +104,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
             });
         } catch (error) {
             console.error("Failed to load settings store:", error);
+            set({ isLoaded: true });
         }
     }
+
 }));

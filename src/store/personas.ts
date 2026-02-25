@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { load } from "@tauri-apps/plugin-store";
 import { Persona, defaultPersonas } from "../lib/roles";
+import { isTauri } from "../lib/tauri";
+
 
 interface PersonasState {
     personas: Persona[];
@@ -17,30 +19,63 @@ export const usePersonasStore = create<PersonasState>((set, get) => ({
 
     addPersona: async (persona) => {
         const newPersonas = [...get().personas, { ...persona, isCustom: true }];
-        const store = await load("personas.json", { autoSave: false, defaults: {} });
-        await store.set("customPersonas", newPersonas.filter(p => p.isCustom));
-        await store.save();
+
+        if (isTauri()) {
+            try {
+                const store = await load("personas.json", { autoSave: false, defaults: {} });
+                await store.set("customPersonas", newPersonas.filter(p => p.isCustom));
+                await store.save();
+            } catch (e) {
+                console.error("Failed to save persona to Tauri store:", e);
+            }
+        }
+
         set({ personas: newPersonas });
     },
+
 
     updatePersona: async (id, updated) => {
         const newPersonas = get().personas.map(p => p.id === id ? { ...updated, isCustom: p.isCustom } : p);
-        const store = await load("personas.json", { autoSave: false, defaults: {} });
-        await store.set("customPersonas", newPersonas.filter(p => p.isCustom));
-        await store.save();
+
+        if (isTauri()) {
+            try {
+                const store = await load("personas.json", { autoSave: false, defaults: {} });
+                await store.set("customPersonas", newPersonas.filter(p => p.isCustom));
+                await store.save();
+            } catch (e) {
+                console.error("Failed to update persona in Tauri store:", e);
+            }
+        }
+
         set({ personas: newPersonas });
     },
+
 
     deletePersona: async (id) => {
         const newPersonas = get().personas.filter(p => p.id !== id || !p.isCustom);
-        const store = await load("personas.json", { autoSave: false, defaults: {} });
-        await store.set("customPersonas", newPersonas.filter(p => p.isCustom));
-        await store.save();
+
+        if (isTauri()) {
+            try {
+                const store = await load("personas.json", { autoSave: false, defaults: {} });
+                await store.set("customPersonas", newPersonas.filter(p => p.isCustom));
+                await store.save();
+            } catch (e) {
+                console.error("Failed to delete persona from Tauri store:", e);
+            }
+        }
+
         set({ personas: newPersonas });
     },
 
+
     loadPersonas: async () => {
         if (get().isLoaded) return;
+
+        if (!isTauri()) {
+            set({ isLoaded: true });
+            return;
+        }
+
         try {
             const store = await load("personas.json", { autoSave: false, defaults: {} });
             const customPersonas = await store.get<Persona[]>("customPersonas") || [];
@@ -59,6 +94,8 @@ export const usePersonasStore = create<PersonasState>((set, get) => ({
             set({ personas: allPersonas, isLoaded: true });
         } catch (e) {
             console.error("Failed to load personas:", e);
+            set({ isLoaded: true }); // Mark as loaded even if it fails to prevent infinite retries
         }
     }
+
 }));

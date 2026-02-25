@@ -7,7 +7,7 @@ import { OllamaProvider } from "@/lib/llm/ollama";
 import { GeminiProvider } from "@/lib/llm/gemini";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
+
 import { useBuilderStore } from "@/store/builder";
 import { useHistoryStore } from "@/store/history";
 import {
@@ -17,12 +17,35 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Play, Save, Loader2, Copy, Check, Trash2, Eye, EyeOff, Zap, FileText, BarChart3, Edit3 } from "lucide-react";
+import { Save, Loader2, Copy, Check, Trash2, Eye, EyeOff, Zap, FileText, BarChart3, Edit3, Wand2, BookMarked, GripVertical } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
+import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    DragEndEvent
+} from '@dnd-kit/core';
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { DraggableBlock } from "@/components/DraggableBlock";
+import { SnippetSidebar } from "@/components/SnippetSidebar";
+import { useSnippetStore } from "@/store/snippets";
+import { ConstraintsInput } from "@/components/ConstraintsInput";
+import { BranchTabBar } from "@/components/BranchTabBar";
+import { SchemaBuilder } from "@/components/SchemaBuilder";
+import { OutputFormat } from "@/store/builder";
 
 export function BuilderPage() {
     const { personas } = usePersonasStore();
@@ -34,8 +57,15 @@ export function BuilderPage() {
         selectedPersonaId, setSelectedPersonaId,
         constraints, setConstraints,
         outputFormat, setOutputFormat,
+        blockOrder, setBlockOrder,
         lastResult, setLastResult
     } = useBuilderStore();
+
+    const [isReordering, setIsReordering] = useState(false);
+    const { addSnippet } = useSnippetStore();
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [selectedContextText, setSelectedContextText] = useState("");
+    const contextTextareaRef = useRef<HTMLTextAreaElement>(null);
 
     const { addEntry } = useHistoryStore();
 
@@ -64,7 +94,21 @@ export function BuilderPage() {
         }
     }, [lastResult, result]);
 
+    const sensors = useSensors(
+        useSensor(PointerSensor),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
 
+    const handleDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event;
+        if (over && active.id !== over.id) {
+            const oldIndex = blockOrder.indexOf(active.id as string);
+            const newIndex = blockOrder.indexOf(over.id as string);
+            setBlockOrder(arrayMove(blockOrder, oldIndex, newIndex));
+        }
+    };
 
     // Typewriter effect for smoothing large chunks
     useEffect(() => {
@@ -97,24 +141,76 @@ export function BuilderPage() {
             prompt += `[SYSTEM ROLE]\n${persona.name}: ${persona.mindset}\n\n`;
         }
 
-        if (goal) prompt += `[GOAL]\n${goal}\n\n`;
-        if (context) prompt += `[CONTEXT]\n${context}\n\n`;
+        const compileBlock = (blockId: string) => {
+            switch (blockId) {
+                case 'goal':
+                    if (goal) prompt += `[GOAL]\n${goal}\n\n`;
+                    break;
+                case 'context':
+                    if (context) prompt += `[CONTEXT]\n${context}\n\n`;
+                    break;
+                case 'constraints':
+                    const parseConstraint = (c: string) => {
+                        const trimmed = c.trim();
+                        if (trimmed.startsWith('!')) return `<important_constraint>${trimmed.slice(1).trim()}</important_constraint>`;
+                        if (trimmed.startsWith('?')) return `<optional_style>${trimmed.slice(1).trim()}</optional_style>`;
+                        return trimmed;
+                    };
+                    const combinedConstraints = [
+                        ...(persona?.constraints || []),
+                        ...constraints.split("\n").filter((c: string) => c.trim().length > 0)
+                    ];
+                    if (combinedConstraints.length > 0) {
+                        prompt += `[CONSTRAINTS]\n${combinedConstraints.map(c => "- " + parseConstraint(c)).join("\n")}\n\n`;
+                    }
+                    break;
+                case 'outputFormat':
+                    const formatOutput = (format: OutputFormat, fallback?: string) => {
+                        if (format.mode === 'structured') {
+                            if (format.schema.length === 0) return fallback || "";
+                            let schemaStr = "Return a JSON object matching this strict schema:\n{\n";
+                            format.schema.forEach((field, i) => {
+                                const comma = i === format.schema.length - 1 ? "" : ",";
+                                schemaStr += `  "${field.key}": <${field.type}> // ${field.description}${comma}\n`;
+                            });
+                            schemaStr += "}";
+                            return schemaStr;
+                        }
+                        return format.raw.trim() || fallback || "";
+                    };
 
-        const combinedConstraints = [
-            ...(persona?.constraints || []),
-            ...constraints.split("\n").filter((c: string) => c.trim().length > 0)
-        ];
+                    const compiledOutputFormat = formatOutput(outputFormat, persona?.outputFormat);
+                    if (compiledOutputFormat) {
+                        prompt += `[OUTPUT FORMAT]\n${compiledOutputFormat}\n\n`;
+                    }
+                    break;
+            }
+        };
 
-        if (combinedConstraints.length > 0) {
-            prompt += `[CONSTRAINTS]\n${combinedConstraints.map(c => "- " + c).join("\n")}\n\n`;
-        }
-
-        if (outputFormat || persona?.outputFormat) {
-            prompt += `[OUTPUT FORMAT]\n${outputFormat || persona?.outputFormat}\n\n`;
-        }
+        // Synthesize in block order
+        blockOrder.forEach(compileBlock);
 
         setCompiledPrompt(prompt.trim());
-    }, [goal, context, selectedPersonaId, constraints, outputFormat, personas]);
+    }, [goal, context, selectedPersonaId, constraints, outputFormat, personas, blockOrder]);
+
+    const handleContextSelection = () => {
+        if (contextTextareaRef.current) {
+            const selectedText = contextTextareaRef.current.value.substring(
+                contextTextareaRef.current.selectionStart,
+                contextTextareaRef.current.selectionEnd
+            );
+            setSelectedContextText(selectedText);
+        }
+    };
+
+    const handleSaveSnippet = async () => {
+        if (!selectedContextText.trim()) return;
+        const title = window.prompt("Enter a title for this snippet:");
+        if (title) {
+            await addSnippet({ title, content: selectedContextText });
+            setSelectedContextText(""); // Clear selection state after save
+        }
+    };
 
     const handleGenerate = async () => {
         if (!goal && !context) return;
@@ -132,25 +228,57 @@ export function BuilderPage() {
             if (persona) {
                 messages.push({
                     role: "system",
-                    content: `Adopt the persona: ${persona.name}\n\nMindset: ${persona.mindset}\n\nThinking Style: ${persona.thinkingStyle}`
+                    content: `You are a professional Meta-Prompt Engineer. Your ONLY task is to draft a high-quality, structured, and effective PROMPT that a user can use with another AI (like Cursor, ChatGPT, or Claude) to achieve a specific goal.\n\nAdopt the mindset of a ${persona.name} specializing in Prompt Engineering.\n\nPersona Mindset: ${persona.mindset}\n\nThinking Style for Prompt Drafting: ${persona.thinkingStyle}\n\nDo not perform the task described in the Goal. Instead, write a PROMPT that tells ANOTHER AI how to perform that task perfectly.`
                 });
             }
 
             let userContent = "";
-            if (goal) userContent += `## GOAL\n${goal}\n\n`;
-            if (context) userContent += `## CONTEXT / DATA\n${context}\n\n`;
 
-            const rawConstraints = constraints.split("\n").filter(c => c.trim().length > 0);
-            const allConstraints = [...(persona?.constraints || []), ...rawConstraints];
+            const compileBlockForLLM = (blockId: string) => {
+                switch (blockId) {
+                    case 'goal':
+                        if (goal) userContent += `## GOAL\n${goal}\n\n`;
+                        break;
+                    case 'context':
+                        if (context) userContent += `## CONTEXT / DATA\n${context}\n\n`;
+                        break;
+                    case 'constraints':
+                        const parseConstraint = (c: string) => {
+                            const trimmed = c.trim();
+                            if (trimmed.startsWith('!')) return `<important_constraint>${trimmed.slice(1).trim()}</important_constraint>`;
+                            if (trimmed.startsWith('?')) return `<optional_style>${trimmed.slice(1).trim()}</optional_style>`;
+                            return trimmed;
+                        };
+                        const rawConstraints = constraints.split("\n").filter(c => c.trim().length > 0);
+                        const allConstraints = [...(persona?.constraints || []), ...rawConstraints];
+                        if (allConstraints.length > 0) {
+                            userContent += `## CONSTRAINTS\n${allConstraints.map(c => "- " + parseConstraint(c)).join("\n")}\n\n`;
+                        }
+                        break;
+                    case 'outputFormat':
+                        const formatOutput = (format: OutputFormat, fallback?: string) => {
+                            if (format.mode === 'structured') {
+                                if (format.schema.length === 0) return fallback || "";
+                                let schemaStr = "Return a JSON object matching this strict schema:\n{\n";
+                                format.schema.forEach((field, i) => {
+                                    const comma = i === format.schema.length - 1 ? "" : ",";
+                                    schemaStr += `  "${field.key}": <${field.type}> // ${field.description}${comma}\n`;
+                                });
+                                schemaStr += "}";
+                                return schemaStr;
+                            }
+                            return format.raw.trim() || fallback || "";
+                        };
 
-            if (allConstraints.length > 0) {
-                userContent += `## CONSTRAINTS\n${allConstraints.map(c => "- " + c).join("\n")}\n\n`;
-            }
+                        const compiledOutputFormat = formatOutput(outputFormat, persona?.outputFormat);
+                        if (compiledOutputFormat) {
+                            userContent += `## DESIRED OUTPUT FORMAT\n${compiledOutputFormat}\n\n`;
+                        }
+                        break;
+                }
+            };
 
-            const format = outputFormat || persona?.outputFormat;
-            if (format) {
-                userContent += `## DESIRED OUTPUT FORMAT\n${format}\n\n`;
-            }
+            blockOrder.forEach(compileBlockForLLM);
 
             messages.push({ role: "user", content: userContent.trim() });
 
@@ -180,7 +308,7 @@ export function BuilderPage() {
             setResult(response);
             setDisplayedResult(response); // Force sync displayed content
             setLastResult(response);
-            toast.success("Generation complete!");
+            toast.success("Prompt crafted successfully!");
 
             // Record in history
             await addEntry({
@@ -189,7 +317,7 @@ export function BuilderPage() {
                 goal: goal,
                 context: context,
                 constraints: constraints,
-                outputFormat: outputFormat,
+                outputFormat: outputFormat.mode === 'simple' ? outputFormat.raw : JSON.stringify(outputFormat.schema),
                 prompt: userContent, // Store the final user prompt
                 response: response,
                 model: defaultModel
@@ -212,7 +340,7 @@ export function BuilderPage() {
             goal: goal,
             context: context,
             constraints: constraints,
-            outputFormat: outputFormat,
+            outputFormat: outputFormat.mode === 'simple' ? outputFormat.raw : JSON.stringify(outputFormat.schema),
             prompt: compiledPrompt,
             response: displayedResult,
             model: defaultModel
@@ -234,77 +362,149 @@ export function BuilderPage() {
     };
 
     return (
-        <div className="p-6 max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
-            {/* Builder Column */}
-            <div className="flex flex-col gap-4 overflow-y-auto pr-2 pb-20">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Prompt Builder</h1>
-                    <p className="text-muted-foreground mt-1 text-sm">Design structured prompts using modular blocks.</p>
+        <div className="p-4 md:p-6 2xl:p-12 3xl:px-22 4xl:px-30 max-w-[2800px] mx-auto grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-8 2xl:gap-12 h-full overflow-hidden">
+            {/* 1. Input Column */}
+            <div className="flex flex-col gap-6 overflow-y-auto pr-4 pb-20 2xl:pb-0 scrollbar-hide">
+                <div className="mb-2">
+                    <h1 className="text-4xl font-extrabold tracking-tight font-outfit bg-gradient-to-br from-foreground to-foreground/60 bg-clip-text text-transparent">Prompt Forge</h1>
+                    <p className="text-muted-foreground mt-2 text-sm max-w-md leading-relaxed">Draft elite prompts using modular engineering blocks and professional AI personas.</p>
                 </div>
+
+                <BranchTabBar />
 
                 <div className="space-y-4 mt-2">
                     {/* Role Selection */}
-                    <div className="space-y-1.5">
-                        <label className="text-sm font-semibold">🧠 Role / Persona</label>
+                    <div className="space-y-2 bg-card/40 p-4 rounded-2xl border border-white/5 shadow-sm">
+                        <label className="text-xs font-bold uppercase tracking-widest text-indigo-400">🧠 Role / Persona</label>
                         <Select value={selectedPersonaId} onValueChange={setSelectedPersonaId}>
-                            <SelectTrigger>
+                            <SelectTrigger className="bg-background/50 border-white/10 h-11">
                                 <SelectValue placeholder="Select a persona to adopt..." />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent className="bg-popover/90 backdrop-blur-xl border-white/10">
                                 {personas.map(p => (
-                                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                                    <SelectItem key={p.id} value={p.id} className="focus:bg-indigo-500/20">{p.name}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
                     </div>
 
-                    {/* Goal Block */}
-                    <div className="space-y-1.5">
-                        <label className="text-sm font-semibold">🎯 Goal</label>
-                        <Textarea
-                            placeholder="What do you want the AI to achieve?"
-                            value={goal}
-                            onChange={e => setGoal(e.target.value)}
-                            className="resize-none h-20"
-                        />
+                    <div className="flex items-start justify-between mb-4">
+                        <label className="text-xs font-bold uppercase tracking-widest text-indigo-400">🧠 Builder Configuration</label>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className={`h-8 px-3 text-xs shrink-0 flex items-center gap-2 border transition-colors ${isReordering ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/50 hover:bg-indigo-500/30 font-bold' : 'hover:bg-accent border-white/10'}`}
+                            onClick={() => setIsReordering(!isReordering)}
+                        >
+                            <GripVertical className="size-3.5" />
+                            {isReordering ? "Done Reordering" : "Reorder Blocks"}
+                        </Button>
                     </div>
 
-                    {/* Context Block */}
-                    <div className="space-y-1.5">
-                        <label className="text-sm font-semibold">📄 Context</label>
-                        <Textarea
-                            placeholder="Paste relevant code, background info, or requirements..."
-                            value={context}
-                            onChange={e => setContext(e.target.value)}
-                            className="font-mono text-sm h-32"
-                        />
-                    </div>
+                    <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleDragEnd}
+                    >
+                        <SortableContext
+                            items={blockOrder}
+                            strategy={verticalListSortingStrategy}
+                        >
+                            <div className="grid grid-cols-1 gap-6 p-1">
+                                {blockOrder.map((blockId) => {
+                                    switch (blockId) {
+                                        case 'goal':
+                                            return (
+                                                <DraggableBlock key="goal" id="goal" isReordering={isReordering}>
+                                                    <div className="space-y-2">
+                                                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground/80">🎯 Goal</label>
+                                                        <Textarea
+                                                            placeholder="What do you want the AI to achieve?"
+                                                            value={goal}
+                                                            onChange={e => setGoal(e.target.value)}
+                                                            className="resize-none h-24 bg-background/40 border-white/10 focus:border-indigo-500/50 transition-colors text-base"
+                                                        />
+                                                    </div>
+                                                </DraggableBlock>
+                                            );
+                                        case 'context':
+                                            return (
+                                                <DraggableBlock key="context" id="context" isReordering={isReordering}>
+                                                    <div className="space-y-2 relative">
+                                                        <div className="flex items-center justify-between">
+                                                            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground/80">📄 Context</label>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="h-6 px-2 text-[10px] text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 pointer-events-auto"
+                                                                onClick={(e) => { e.stopPropagation(); setIsSidebarOpen(true); }}
+                                                            >
+                                                                <BookMarked className="size-3 mr-1" /> View Library
+                                                            </Button>
+                                                        </div>
+                                                        <div className="relative pointer-events-auto">
+                                                            <Textarea
+                                                                ref={contextTextareaRef}
+                                                                placeholder="Paste relevant code, background info, or requirements... (Highlight text to save as snippet)"
+                                                                value={context}
+                                                                onChange={e => setContext(e.target.value)}
+                                                                onSelect={handleContextSelection}
+                                                                onKeyUp={handleContextSelection}
+                                                                onMouseUp={handleContextSelection}
+                                                                className="font-mono text-xs h-40 bg-background/40 border-white/10 focus:border-indigo-500/50 transition-colors pb-10"
+                                                            />
+                                                            {selectedContextText.trim().length > 0 && (
+                                                                <div className="absolute bottom-2 right-2 animate-in fade-in slide-in-from-bottom-2">
+                                                                    <Button
+                                                                        size="sm"
+                                                                        onClick={(e) => { e.stopPropagation(); handleSaveSnippet(); }}
+                                                                        className="h-7 text-xs bg-indigo-500 hover:bg-indigo-600 text-white shadow-lg pointer-events-auto"
+                                                                    >
+                                                                        <Save className="size-3 mr-1.5" /> Save Snippet
+                                                                    </Button>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </DraggableBlock>
+                                            );
+                                        case 'constraints':
+                                            return (
+                                                <DraggableBlock key="constraints" id="constraints" isReordering={isReordering}>
+                                                    <div className="space-y-3 pb-4">
+                                                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground/80">⚙ Constraints</label>
+                                                        <ConstraintsInput
+                                                            value={constraints}
+                                                            onChange={setConstraints}
+                                                            placeholder="List rules (one per line)..."
+                                                            className="h-32 w-full pointer-events-auto"
+                                                        />
+                                                    </div>
+                                                </DraggableBlock>
+                                            );
+                                        case 'outputFormat':
+                                            return (
+                                                <DraggableBlock key="outputFormat" id="outputFormat" isReordering={isReordering}>
+                                                    <div className="space-y-3 relative pb-4">
+                                                        <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground/80">📊 Output Format</label>
+                                                        <SchemaBuilder
+                                                            value={outputFormat}
+                                                            onChange={setOutputFormat}
+                                                            className="pt-1 mt-0 pointer-events-auto"
+                                                        />
+                                                    </div>
+                                                </DraggableBlock>
+                                            );
+                                        default:
+                                            return null;
+                                    }
+                                })}
+                            </div>
+                        </SortableContext>
+                    </DndContext>
 
-                    <div className="grid grid-cols-2 gap-4">
-                        {/* Custom Constraints */}
-                        <div className="space-y-1.5">
-                            <label className="text-sm font-semibold">⚙ Constraints</label>
-                            <Textarea
-                                placeholder="List rules (one per line)..."
-                                value={constraints}
-                                onChange={e => setConstraints(e.target.value)}
-                                className="h-20"
-                            />
-                        </div>
-
-                        {/* Output Format */}
-                        <div className="space-y-1.5">
-                            <label className="text-sm font-semibold">📊 Output Format</label>
-                            <Input
-                                placeholder="e.g. JSON, Markdown table..."
-                                value={outputFormat}
-                                onChange={e => setOutputFormat(e.target.value)}
-                            />
-                        </div>
-                    </div>
-
-                    {/* Collapsible Compiled Prompt Preview */}
-                    <div className="pt-4 border-t">
+                    {/* Collapsible Compiled Prompt Preview (Mobile/Lower Desktop Only) */}
+                    <div className="pt-4 border-t 2xl:hidden">
                         <Button
                             variant="ghost"
                             size="sm"
@@ -322,14 +522,71 @@ export function BuilderPage() {
                         )}
                     </div>
                 </div>
+
+                <div className="pt-4 flex items-center gap-3 mt-auto">
+                    <Button
+                        size="lg"
+                        className="flex-1 h-14 text-lg font-bold premium-gradient text-white shadow-xl shadow-indigo-500/25 transition-all duration-300 active:scale-[0.97] hover:premium-glow group relative overflow-hidden"
+                        onClick={handleGenerate}
+                        disabled={isGenerating || !goal}
+                    >
+                        <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
+                        <div className="relative flex items-center justify-center gap-3">
+                            {isGenerating ? (
+                                <Loader2 className="animate-spin size-5" />
+                            ) : (
+                                <Wand2 className="size-5" />
+                            )}
+                            {isGenerating ? "Forging..." : "Craft Prompt"}
+                        </div>
+                    </Button>
+                </div>
             </div>
 
-            {/* Preview & Output Column (Right side - Now full height for Response) */}
-            <div className="flex flex-col gap-4 h-full overflow-hidden border-l pl-6">
+            {/* 2. Center Column: Live Engine Synthesis (Visible on 2xl+) */}
+            <div className="hidden 2xl:flex flex-col gap-6 h-full overflow-hidden">
+                <div className="flex flex-col h-full bg-card/20 p-8 rounded-[2.5rem] border border-white/5 relative group">
+                    <div className="flex items-center justify-between mb-6 shrink-0">
+                        <div className="flex flex-col">
+                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400 mb-1">Live Engine</span>
+                            <h3 className="font-outfit font-bold text-xl tracking-tight">Compiled Logic</h3>
+                        </div>
+                        <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full hover:bg-white/5" onClick={() => navigator.clipboard.writeText(compiledPrompt)} title="Copy compiled prompt">
+                            <Copy className="size-4 opacity-40 group-hover:opacity-100 transition-opacity" />
+                        </Button>
+                    </div>
+
+                    <ScrollArea className="flex-1 font-mono text-[13px] leading-relaxed relative">
+                        <div className="p-1 opacity-70 group-hover:opacity-100 transition-opacity duration-500">
+                            {compiledPrompt ? (
+                                <div className="whitespace-pre-wrap">{compiledPrompt}</div>
+                            ) : (
+                                <div className="italic text-muted-foreground/40">Synthesizing prompt blocks in real-time...</div>
+                            )}
+                        </div>
+                    </ScrollArea>
+
+                    <div className="mt-6 pt-6 border-t border-white/5 flex items-center justify-between shrink-0">
+                        <div className="flex items-center gap-3">
+                            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
+                                <span className="relative flex h-2 w-2">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                </span>
+                            </div>
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">Active Synthesis</span>
+                        </div>
+                        <span className="text-[10px] font-mono opacity-30">{compiledPrompt.length} chars</span>
+                    </div>
+                </div>
+            </div>
+
+            {/* 3. Output Area (Right Column) */}
+            <div className="flex flex-col gap-6 h-full overflow-hidden lg:pl-4 2xl:pl-0">
                 {/* Actions Header */}
                 <div className="flex items-center justify-between shrink-0 mb-2">
                     <h3 className="text-lg font-semibold flex items-center gap-2">
-                        <span>AI Response</span>
+                        <span>Generated Prompt</span>
                         {isGenerating && <Loader2 className="size-4 animate-spin text-primary" />}
                     </h3>
                     <div className="flex items-center gap-2">
@@ -343,13 +600,13 @@ export function BuilderPage() {
                             <Save className="size-3.5 mr-2" /> Save
                         </Button>
                         <Button
-                            size="sm"
-                            className="h-8 px-4 text-xs font-bold"
+                            size="lg"
+                            className="h-10 px-6 text-sm font-bold premium-gradient premium-glow border-0 hover:opacity-90 active:scale-[0.97] transition-all"
                             onClick={handleGenerate}
                             disabled={isGenerating || !compiledPrompt}
                         >
-                            {isGenerating ? <Loader2 className="size-3.5 mr-2 animate-spin" /> : <Play className="size-3.5 mr-2" />}
-                            Run Prompt
+                            {isGenerating ? <Loader2 className="size-4 mr-2 animate-spin" /> : <Zap className="size-4 mr-2 fill-current" />}
+                            Craft Prompt
                         </Button>
                     </div>
                 </div>
@@ -465,7 +722,7 @@ export function BuilderPage() {
                             <Textarea
                                 value={displayedResult}
                                 onChange={(e) => handleResultChange(e.target.value)}
-                                placeholder="AI output will appear here..."
+                                placeholder="Your engineered prompt will appear here..."
                                 className="h-full w-full font-mono text-sm leading-relaxed p-4 bg-transparent border-0 focus-visible:ring-0 resize-none"
                             />
                         )}
@@ -478,6 +735,15 @@ export function BuilderPage() {
                     </div>
                 </div>
             </div>
+
+            <SnippetSidebar
+                open={isSidebarOpen}
+                onOpenChange={setIsSidebarOpen}
+                onInsert={(snippetContent) => {
+                    const addition = context.trim() ? `\n\n${snippetContent}` : snippetContent;
+                    setContext(context + addition);
+                }}
+            />
         </div>
     );
 }

@@ -5,7 +5,7 @@ import { useBuilderStore } from "@/store/builder";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Clock, User, Cpu, RotateCcw, ChevronRight, History as HistoryIcon, FileText, MessageSquare } from "lucide-react";
+import { Clock, User, Cpu, RotateCcw, ChevronRight, History as HistoryIcon, FileText, Copy, Trash2, LayoutList, Calendar, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -37,44 +37,65 @@ export function HistoryPage() {
         setContext(entry.context);
         setSelectedPersonaId(entry.personaId);
         setConstraints(entry.constraints);
-        setOutputFormat(entry.outputFormat);
+
+        let parsedOutputFormat;
+        try {
+            const parsed = JSON.parse(entry.outputFormat);
+            if (Array.isArray(parsed)) {
+                parsedOutputFormat = { mode: 'structured' as const, raw: '', schema: parsed };
+            } else {
+                parsedOutputFormat = { mode: 'simple' as const, raw: entry.outputFormat, schema: [] };
+            }
+        } catch {
+            parsedOutputFormat = { mode: 'simple' as const, raw: entry.outputFormat || '', schema: [] };
+        }
+        setOutputFormat(parsedOutputFormat);
+
         setLastResult(entry.response);
         toast.success("Prompt restored to Builder");
         navigate("/");
     };
 
     return (
-        <div className="h-full flex overflow-hidden bg-background">
-            {/* Master Sidebar */}
-            <div className="w-[320px] border-r flex flex-col shrink-0 bg-muted/5">
-                <div className="p-4 border-b shrink-0 flex items-center justify-between bg-card/50">
-                    <h3 className="font-semibold text-sm flex items-center gap-2">
-                        <HistoryIcon className="size-4 text-primary" />
-                        Prompt History ({history.length})
-                    </h3>
-                    {history.length > 0 && (
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-destructive hover:bg-destructive/10"
-                            onClick={() => {
-                                if (confirm("Clear all history? This cannot be undone.")) {
-                                    clearHistory();
-                                }
-                            }}
-                        >
-                            <Clock className="size-4" />
-                        </Button>
-                    )}
+        <div className="h-full flex flex-col md:flex-row overflow-hidden bg-background selection:bg-indigo-500/10">
+            {/* Master Sidebar (Glassmorphic) */}
+            <div className="w-full md:w-[360px] 2xl:w-[420px] border-r border-white/5 flex flex-col shrink-0 bg-card/20 backdrop-blur-xl relative z-20 shadow-2xl">
+                <div className="p-8 border-b border-white/5 shrink-0 flex flex-col gap-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-indigo-500/10 rounded-lg">
+                                <LayoutList className="size-5 text-indigo-400" />
+                            </div>
+                            <h3 className="font-outfit font-black text-xl tracking-tight uppercase">Archive</h3>
+                        </div>
+                        {history.length > 0 && (
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-9 w-9 rounded-xl text-destructive hover:bg-destructive/10 transition-colors"
+                                onClick={() => {
+                                    if (confirm("Clear all history? This cannot be undone.")) {
+                                        clearHistory();
+                                    }
+                                }}
+                            >
+                                <Trash2 className="size-4" />
+                            </Button>
+                        )}
+                    </div>
+                    <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">
+                        <HistoryIcon className="size-3" />
+                        <span>{history.length} Cognitive Cycles Recorded</span>
+                    </div>
                 </div>
 
                 <ScrollArea className="flex-1">
-                    <div className="divide-y divide-border/30">
+                    <div className="p-3 space-y-2">
                         {history.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center py-20 text-center opacity-40 px-6">
-                                <HistoryIcon className="size-12 mb-4" />
-                                <p className="text-sm font-medium">No history yet</p>
-                                <p className="text-xs mt-1 italic">Saved prompts will appear here automatically.</p>
+                            <div className="flex flex-col items-center justify-center py-24 text-center px-8 opacity-20">
+                                <HistoryIcon className="size-16 mb-4" />
+                                <p className="text-base font-bold font-outfit uppercase tracking-widest">History Empty</p>
+                                <p className="text-xs mt-2 italic leading-relaxed">Generated artifacts will be archived here automatically.</p>
                             </div>
                         ) : (
                             history.map((entry) => (
@@ -82,29 +103,35 @@ export function HistoryPage() {
                                     key={entry.id}
                                     onClick={() => setSelectedId(entry.id!)}
                                     className={cn(
-                                        "w-full text-left p-4 hover:bg-muted/50 transition-all flex flex-col gap-2 relative group",
+                                        "w-full text-left p-5 rounded-[1.5rem] transition-all duration-300 flex flex-col gap-3 group relative border",
                                         selectedId === entry.id || (!selectedId && history[0].id === entry.id)
-                                            ? "bg-muted/80 border-r-4 border-primary shadow-sm"
-                                            : ""
+                                            ? "bg-white/10 border-indigo-500/30 shadow-lg shadow-indigo-500/5 ring-1 ring-white/10"
+                                            : "bg-transparent border-transparent hover:bg-white/5 hover:border-white/5"
                                     )}
                                 >
                                     <div className="flex justify-between items-center w-full">
-                                        <span className="text-[10px] font-mono opacity-60 font-bold tracking-tighter uppercase">
-                                            {new Date(entry.timestamp).toLocaleDateString()} · {new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                        </span>
-                                        <ChevronRight className={cn("size-3.5 opacity-0 transition-opacity", selectedId === entry.id && "opacity-40")} />
+                                        <div className="flex items-center gap-2 opacity-50 font-mono text-[9px] font-bold uppercase tracking-tight">
+                                            <Calendar className="size-2.5" />
+                                            {new Date(entry.timestamp).toLocaleDateString()}
+                                            <span className="opacity-30">/</span>
+                                            {new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </div>
+                                        <ChevronRight className={cn("size-3 transition-all duration-300", selectedId === entry.id ? "translate-x-0 opacity-100 text-indigo-400" : "-translate-x-2 opacity-0")} />
                                     </div>
-                                    <p className="text-xs font-semibold truncate leading-tight">
-                                        {entry.goal || "Untitled Workflow"}
+                                    <p className="text-sm font-bold font-outfit tracking-tight line-clamp-2 leading-snug pr-4">
+                                        {entry.goal || "Abstract Workflow"}
                                     </p>
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <Badge variant="outline" className="text-[9px] h-4 font-mono px-1 border-primary/20 bg-primary/5">
+                                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                        <Badge variant="outline" className="text-[8px] h-4 font-black uppercase tracking-widest px-2 border-indigo-500/20 bg-indigo-500/5 text-indigo-400">
                                             {entry.personaName}
                                         </Badge>
-                                        <span className="text-[9px] text-muted-foreground font-mono opacity-60">
+                                        <Badge variant="outline" className="text-[8px] h-4 font-mono opacity-40 px-0">
                                             {entry.model}
-                                        </span>
+                                        </Badge>
                                     </div>
+                                    {(selectedId === entry.id || (!selectedId && history[0].id === entry.id)) && (
+                                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-indigo-500 rounded-full blur-sm" />
+                                    )}
                                 </button>
                             ))
                         )}
@@ -112,98 +139,131 @@ export function HistoryPage() {
                 </ScrollArea>
             </div>
 
-            {/* Detail Pane */}
-            <div className="flex-1 flex flex-col overflow-hidden">
+            {/* Detail Pane (Adaptive Expansion) */}
+            <div className="flex-1 flex flex-col overflow-hidden bg-muted/10">
                 {!selectedEntry ? (
-                    <div className="flex-1 flex flex-col items-center justify-center text-center p-20 opacity-20">
-                        <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center mb-8">
-                            <HistoryIcon className="size-10" />
+                    <div className="flex-1 flex flex-col items-center justify-center text-center p-20">
+                        <div className="size-32 rounded-full bg-indigo-500/5 flex items-center justify-center mb-10 relative">
+                            <HistoryIcon className="size-12 text-indigo-400/20" />
+                            <div className="absolute inset-0 rounded-full border border-indigo-500/10 animate-ping" />
                         </div>
-                        <h2 className="text-2xl font-bold">Select an entry</h2>
-                        <p className="max-w-xs mt-2 text-sm">Review the full details of your past cognitive cycles.</p>
+                        <h2 className="text-3xl font-black font-outfit tracking-tight opacity-20 uppercase">Archive Module Offline</h2>
+                        <p className="max-w-xs mt-3 text-xs text-muted-foreground/40 leading-relaxed font-medium uppercase tracking-widest">
+                            Syncing with persistent history nodes. Select a cycle to reveal logic.
+                        </p>
                     </div>
                 ) : (
                     <>
-                        <div className="p-8 border-b bg-card shrink-0 flex items-center justify-between shadow-sm z-10 relative overflow-hidden">
-                            <div className="absolute top-0 right-0 p-8 opacity-5">
-                                <HistoryIcon className="size-32 -mr-16 -mt-16" />
+                        <div className="p-8 md:p-12 2xl:p-16 border-b border-white/5 bg-card/10 backdrop-blur-md shrink-0 flex flex-col xl:flex-row xl:items-center justify-between gap-8 relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 p-12 opacity-[0.03] group-hover:opacity-[0.05] transition-opacity pointer-events-none">
+                                <HistoryIcon className="size-64 -mr-32 -mt-32 rotate-12" />
                             </div>
 
-                            <div className="relative z-10 space-y-2">
-                                <div className="flex items-center gap-3">
-                                    <Badge variant="outline" className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider bg-primary/5 text-primary border-primary/20">
-                                        <User className="size-3" /> {selectedEntry.personaName}
-                                    </Badge>
-                                    <Badge variant="secondary" className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider">
-                                        <Cpu className="size-3" /> {selectedEntry.model}
-                                    </Badge>
+                            <div className="relative z-10 space-y-4 max-w-4xl">
+                                <div className="flex items-center gap-4 flex-wrap">
+                                    <div className="flex items-center gap-2 px-4 py-1.5 bg-indigo-500/10 border border-indigo-500/20 rounded-full">
+                                        <User className="size-3.5 text-indigo-400" />
+                                        <span className="font-outfit font-black text-[10px] uppercase tracking-[0.2em] text-indigo-400">{selectedEntry.personaName}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 px-4 py-1.5 bg-white/5 border border-white/10 rounded-full">
+                                        <Cpu className="size-3.5 text-muted-foreground/60" />
+                                        <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/60">{selectedEntry.model}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 px-4 py-1.5 bg-white/5 border border-white/10 rounded-full">
+                                        <Clock className="size-3.5 text-muted-foreground/60" />
+                                        <span className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-widest">
+                                            {new Date(selectedEntry.timestamp).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+                                        </span>
+                                    </div>
                                 </div>
-                                <h2 className="text-3xl font-bold tracking-tight">{selectedEntry.goal || "No Goal Specified"}</h2>
-                                <p className="text-muted-foreground text-sm flex items-center gap-2">
-                                    <Clock className="size-3.5" />
-                                    Completed on {new Date(selectedEntry.timestamp).toLocaleString(undefined, { dateStyle: 'long', timeStyle: 'short' })}
-                                </p>
+                                <h2 className="text-4xl 2xl:text-5xl font-black font-outfit tracking-tight leading-[1.1]">{selectedEntry.goal || "Artifact Without Objective"}</h2>
                             </div>
 
-                            <div className="relative z-10">
+                            <div className="relative z-10 flex shrink-0">
                                 <Button
-                                    variant="default"
                                     size="lg"
-                                    className="h-12 px-8 font-bold gap-2 shadow-lg shadow-primary/20"
+                                    className="h-14 px-8 font-black font-outfit uppercase tracking-widest gap-3 premium-gradient shadow-[0_20px_40px_-15px_rgba(99,102,241,0.5)] active:scale-[0.97] transition-all rounded-2xl group"
                                     onClick={() => handleRestore(selectedEntry)}
                                 >
-                                    <RotateCcw className="size-4" />
-                                    Restore to Builder
+                                    <RotateCcw className="size-5 group-hover:-rotate-45 transition-transform duration-300" />
+                                    Restore Logic
                                 </Button>
                             </div>
                         </div>
 
-                        <ScrollArea className="flex-1 bg-muted/10">
-                            <div className="p-8 max-w-4xl mx-auto space-y-8 pb-20">
-                                <section className="space-y-4">
-                                    <div className="flex items-center gap-2 border-b pb-2">
-                                        <FileText className="size-4 text-muted-foreground" />
-                                        <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Prompt Context</h3>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="space-y-1 bg-card p-4 rounded-xl border shadow-sm">
-                                            <span className="text-[10px] font-bold text-muted-foreground block mb-2 uppercase">Core Context</span>
-                                            <p className="text-xs italic leading-relaxed">{selectedEntry.context || "No context provided"}</p>
+                        <ScrollArea className="flex-1">
+                            <div className="p-8 md:p-12 2xl:p-16 max-w-7xl mx-auto space-y-12 3xl:space-y-16 pb-32">
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 3xl:gap-12">
+                                    <section className="space-y-6">
+                                        <div className="flex items-center gap-3">
+                                            <div className="h-6 w-1 bg-indigo-500/30 rounded-full" />
+                                            <h3 className="text-xs font-black uppercase tracking-[0.3em] text-muted-foreground/60">Logic Context</h3>
                                         </div>
-                                        <div className="space-y-1 bg-card p-4 rounded-xl border shadow-sm">
-                                            <span className="text-[10px] font-bold text-muted-foreground block mb-2 uppercase">Constraints</span>
-                                            <p className="text-xs italic leading-relaxed">{selectedEntry.constraints || "No constraints provided"}</p>
+                                        <div className="bg-card/30 border border-white/5 p-8 rounded-[2rem] shadow-sm relative group/inner">
+                                            <div className="absolute top-0 right-0 p-4 opacity-5">
+                                                <FileText className="size-12" />
+                                            </div>
+                                            <p className="text-sm font-medium leading-relaxed italic text-foreground/80 selection:bg-indigo-500/30">
+                                                {selectedEntry.context || "No context injection detected for this cycle."}
+                                            </p>
                                         </div>
-                                    </div>
-                                    <div className="bg-card p-6 rounded-xl border shadow-sm space-y-3">
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-[10px] font-bold text-muted-foreground uppercase">Compiled Prompt</span>
-                                            <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => navigator.clipboard.writeText(selectedEntry.prompt)}>
-                                                Copy Prompt
-                                            </Button>
-                                        </div>
-                                        <pre className="text-xs font-mono bg-muted/30 p-4 rounded-lg border leading-relaxed whitespace-pre-wrap max-h-[300px] overflow-y-auto">
-                                            {selectedEntry.prompt}
-                                        </pre>
-                                    </div>
-                                </section>
+                                    </section>
 
-                                <section className="space-y-4">
-                                    <div className="flex items-center gap-2 border-b pb-2">
-                                        <MessageSquare className="size-4 text-primary" />
-                                        <h3 className="text-sm font-bold uppercase tracking-widest text-primary">AI Generation Result</h3>
-                                    </div>
-                                    <div className="bg-card p-8 rounded-2xl border-2 border-primary/5 shadow-xl relative group">
-                                        <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <Button variant="outline" size="sm" className="h-8 gap-2" onClick={() => navigator.clipboard.writeText(selectedEntry.response)}>
-                                                Copy Response
-                                            </Button>
+                                    <section className="space-y-6">
+                                        <div className="flex items-center gap-3">
+                                            <div className="h-6 w-1 bg-indigo-500/30 rounded-full" />
+                                            <h3 className="text-xs font-black uppercase tracking-[0.3em] text-muted-foreground/60">Operational Directives</h3>
                                         </div>
-                                        <div className="text-[15px] font-serif leading-relaxed whitespace-pre-wrap selection:bg-primary/20">
+                                        <div className="bg-card/30 border border-white/5 p-8 rounded-[2rem] shadow-sm relative group/inner">
+                                            <div className="absolute top-0 right-0 p-4 opacity-5">
+                                                <ShieldCheck className="size-12" />
+                                            </div>
+                                            <div className="space-y-3">
+                                                {selectedEntry.constraints ? selectedEntry.constraints.split("\n").map((c, i) => (
+                                                    <div key={i} className="flex gap-4 group/item">
+                                                        <div className="size-1.5 rounded-full bg-indigo-400 mt-2 shrink-0 opacity-40 group-hover/item:opacity-100 transition-opacity" />
+                                                        <span className="text-sm text-muted-foreground group-hover/item:text-foreground transition-colors leading-relaxed">{c}</span>
+                                                    </div>
+                                                )) : (
+                                                    <p className="text-xs italic opacity-30">No constraints mapped.</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </section>
+                                </div>
+
+                                <section className="space-y-6">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="h-6 w-1 bg-emerald-500/30 rounded-full" />
+                                            <h3 className="text-xs font-black uppercase tracking-[0.3em] text-emerald-400/80">Artifact Synthesis</h3>
+                                        </div>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-9 px-4 rounded-xl gap-2 font-bold uppercase tracking-widest text-[10px] bg-white/5 hover:bg-emerald-500/10 hover:text-emerald-400 transition-all border border-transparent hover:border-emerald-500/20"
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(selectedEntry.response);
+                                                toast.success("Artifact copied to clipboard");
+                                            }}
+                                        >
+                                            <Copy className="size-3.5" />
+                                            Sync to Clipboard
+                                        </Button>
+                                    </div>
+                                    <div className="bg-card/40 border border-white/5 p-10 2xl:p-14 rounded-[3rem] shadow-2xl relative group/synth min-h-[400px]">
+                                        <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/[0.02] via-transparent to-emerald-500/[0.02] pointer-events-none" />
+                                        <div className="relative z-10 font-sans text-lg 2xl:text-xl leading-[1.8] text-foreground/90 whitespace-pre-wrap selection:bg-indigo-500/20 scroll-smooth">
                                             {selectedEntry.response}
                                         </div>
                                     </div>
                                 </section>
+
+                                <div className="flex items-center justify-center pt-8 opacity-20 hover:opacity-100 transition-opacity duration-700">
+                                    <div className="flex items-center gap-4 px-6 py-2 border border-white/10 rounded-full text-[10px] font-black uppercase tracking-[0.4em] font-outfit">
+                                        End of Artifact Trace
+                                    </div>
+                                </div>
                             </div>
                         </ScrollArea>
                     </>

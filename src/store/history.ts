@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import Database from "@tauri-apps/plugin-sql";
 import { useDebugStore } from "./debug";
+import { isTauri } from "../lib/tauri";
+
 
 export interface HistoryEntry {
     id?: number;
@@ -30,6 +32,12 @@ export const useHistoryStore = create<HistoryState>((set) => ({
 
     loadHistory: async () => {
         const { addLog } = useDebugStore.getState();
+
+        if (!isTauri()) {
+            addLog("Tauri not detected, skipping history load", "info");
+            return;
+        }
+
         addLog("Initializing History Store...", "info");
         try {
             const db = await Database.load(DB_PATH);
@@ -73,8 +81,15 @@ export const useHistoryStore = create<HistoryState>((set) => ({
         }
     },
 
+
     addEntry: async (entry: Omit<HistoryEntry, "id" | "timestamp">) => {
         const { addLog } = useDebugStore.getState();
+
+        if (!isTauri()) {
+            addLog("Tauri not detected, skipping history save", "info");
+            return;
+        }
+
         addLog(`Attempting to save history entry: ${entry.goal.substring(0, 30)}...`, "info");
         try {
             const db = await Database.load(DB_PATH);
@@ -103,7 +118,10 @@ export const useHistoryStore = create<HistoryState>((set) => ({
         }
     },
 
+
     clearHistory: async () => {
+        if (!isTauri()) return;
+
         try {
             const db = await Database.load(DB_PATH);
             await db.execute("DELETE FROM history");
@@ -112,4 +130,5 @@ export const useHistoryStore = create<HistoryState>((set) => ({
             console.error("Failed to clear history:", error);
         }
     }
+
 }));
