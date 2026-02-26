@@ -43,15 +43,30 @@ PromptForge gives knowledge workers and developers a structured workbench to des
 
 ## Demo
 
-https://github.com/user-attachments/assets/demo
+![PromptForge Demo](docs/demo.gif)
 
-> **Builder** — select a persona, describe your task, and watch the Compiled Logic panel generate a structured prompt in real time.
+---
 
-![Builder Page](docs/screenshot-builder.png)
+### Screenshots
 
-> **Personas** — 30+ built-in roles across engineering, legal, medical, finance, and creative domains.
-
-![Personas Page](docs/screenshot-personas.png)
+<table>
+  <tr>
+    <td><strong>Builder</strong> — structured prompt workbench</td>
+    <td><strong>AI Personas</strong> — 30+ specialized roles</td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshot-builder.png" alt="Builder Page"/></td>
+    <td><img src="docs/screenshot-personas.png" alt="Personas Page"/></td>
+  </tr>
+  <tr>
+    <td><strong>More Personas</strong> — across engineering, legal, finance &amp; creative</td>
+    <td><strong>Compiled Logic</strong> — live structured prompt preview</td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshot-personas-2.png" alt="Personas Page 2"/></td>
+    <td><img src="docs/screenshot-compiled.png" alt="Compiled Logic"/></td>
+  </tr>
+</table>
 
 ---
 
